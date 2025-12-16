@@ -20,6 +20,17 @@ st.set_page_config(
 
 st.title("Analisis Diabetes - SVM")
 
+tab_data, tab_prediksi = st.tabs(["📊 Data & Analisis", "🧠 Prediksi Diabetes"])
+
+with tab_data:
+    st.subheader("1. Memuat Dataset")
+
+    data = pd.read_excel("data/data_diabetes.xlsx")
+    data.columns = data.columns.str.strip()
+
+    st.success("Dataset berhasil dimuat")
+    st.dataframe(data.head(10), use_container_width=True)
+
 data=pd.read_excel("data/data_diabetes.xlsx")
 data.columns = data.columns.str.strip()
 st.set_page_config(
@@ -366,100 +377,74 @@ ax.grid(True)
 
 st.pyplot(fig)
 
-# =========================================================
-# PREDIKSI DIABETES (APLIKASI INTERAKTIF)
-# =========================================================
-st.markdown("---")
-st.subheader("10. Prediksi Diabetes")
+with tab_prediksi:
+    st.subheader("Prediksi Diabetes")
 
-st.write(
-    "Masukkan data pasien untuk memprediksi apakah berpotensi **Diabetes** atau **Tidak Diabetes** "
-    "menggunakan model SVM yang telah dilatih."
-)
+    st.write(
+        "Masukkan data pasien untuk memprediksi apakah berpotensi "
+        "**Diabetes** atau **Tidak Diabetes** menggunakan model SVM."
+    )
 
-# =========================================================
-# INPUT MANUAL
-# =========================================================
-st.markdown("### 🔹 Input Manual Data Pasien")
+    # -----------------------
+    # INPUT MANUAL
+    # -----------------------
+    st.markdown("### Input Manual Data Pasien")
 
-with st.form("form_prediksi"):
-    input_data = {}
+    with st.form("form_prediksi"):
+        input_data = {}
 
-    for col in X.columns:
-        min_val = float(X[col].min())
-        max_val = float(X[col].max())
-        mean_val = float(X[col].mean())
+        for col in X.columns:
+            min_val = float(X[col].min())
+            max_val = float(X[col].max())
+            mean_val = float(X[col].mean())
 
-        input_data[col] = st.number_input(
-            label=col,
-            min_value=min_val,
-            max_value=max_val,
-            value=mean_val
-        )
+            input_data[col] = st.number_input(
+                label=col,
+                min_value=min_val,
+                max_value=max_val,
+                value=mean_val
+            )
 
-    submit_btn = st.form_submit_button("Prediksi")
+        submit_btn = st.form_submit_button("Prediksi")
 
-if submit_btn:
-    input_df = pd.DataFrame([input_data])
+    if submit_btn:
+        input_df = pd.DataFrame([input_data])
+        input_scaled = scaler.transform(input_df)
+        pred = svm_model.predict(input_scaled)[0]
 
-    # Scaling input
-    input_scaled = scaler.transform(input_df)
+        hasil = "Diabetes" if pred == 1 else "Tidak Diabetes"
+        st.success(f"Hasil Prediksi: **{hasil}**")
 
-    # Prediksi
-    pred = svm_model.predict(input_scaled)[0]
+    # -----------------------
+    # UPLOAD FILE
+    # -----------------------
+    st.markdown("### Prediksi dari File")
 
-    hasil = "Diabetes" if pred == 1 else "Tidak Diabetes"
+    uploaded_file = st.file_uploader(
+        "Upload file CSV atau Excel",
+        type=["csv", "xlsx"]
+    )
 
-    if hasattr(svm_model, "decision_function"):
-        score = svm_model.decision_function(input_scaled)[0]
-        confidence = abs(score)
-    else:
-        confidence = None
+    if uploaded_file:
+        if uploaded_file.name.endswith(".csv"):
+            df_input = pd.read_csv(uploaded_file)
+        else:
+            df_input = pd.read_excel(uploaded_file)
 
-    st.success(f"Hasil Prediksi: **{hasil}**")
+        st.dataframe(df_input.head(), use_container_width=True)
 
-    if confidence is not None:
-        st.info(f"Skor Kepercayaan Model: {confidence:.2f}")
+        if set(X.columns).issubset(df_input.columns):
+            df_input = df_input[X.columns]
+            preds = svm_model.predict(scaler.transform(df_input))
+            df_input["Prediksi"] = np.where(preds == 1, "Diabetes", "Tidak Diabetes")
 
-# =========================================================
-# UPLOAD FILE (CSV / EXCEL)
-# =========================================================
-st.markdown("### 🔹 Prediksi dari File (CSV / Excel)")
+            st.success("Prediksi berhasil")
+            st.dataframe(df_input, use_container_width=True)
+        else:
+            st.error("Kolom pada file tidak sesuai dengan dataset training")
 
-uploaded_file = st.file_uploader(
-    "Upload file berisi data pasien",
-    type=["csv", "xlsx"]
-)
-
-if uploaded_file:
-    if uploaded_file.name.endswith(".csv"):
-        input_file_df = pd.read_csv(uploaded_file)
-    else:
-        input_file_df = pd.read_excel(uploaded_file)
-
-    st.write("Preview Data:")
-    st.dataframe(input_file_df.head(), use_container_width=True)
-
-    # Validasi kolom
-    missing_cols = set(X.columns) - set(input_file_df.columns)
-
-    if missing_cols:
-        st.error(f"Kolom berikut tidak ditemukan di file: {missing_cols}")
-    else:
-        input_file_df = input_file_df[X.columns]
-
-        input_scaled = scaler.transform(input_file_df)
-        preds = svm_model.predict(input_scaled)
-
-        hasil_prediksi = input_file_df.copy()
-        hasil_prediksi["Prediksi"] = np.where(preds == 1, "Diabetes", "Tidak Diabetes")
-
-        st.success("Prediksi berhasil dilakukan")
-        st.dataframe(hasil_prediksi, use_container_width=True)
-
-        # Ringkasan
-        st.markdown("### Ringkasan Hasil")
-        st.write(hasil_prediksi["Prediksi"].value_counts())
+    st.markdown("---")
+    st.caption("Aplikasi Streamlit – Analisis Diabetes dengan SVM")
 
 st.markdown("---")
 st.caption("Aplikasi Streamlit – Analisis Diabetes dengan SVM")
