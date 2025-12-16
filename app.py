@@ -6,12 +6,16 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import streamlit as st
 
+st.write("Memuat data...")
 data=pd.read_excel("data/data_diabetes.xlsx")
 data.columns = data.columns.str.strip()
-
+st.line_chart(data)
+st.write("Data berhasil dimuat!")
 
 data.head(10)
+
 
 data.info()
 
