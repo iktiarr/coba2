@@ -8,21 +8,53 @@ import numpy as np
 import matplotlib.pyplot as plt
 import streamlit as st
 
-st.write("Memuat data...")
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, ConfusionMatrixDisplay
+
+st.set_page_config(
+    page_title="Analisis Diabetes - SVM",
+    layout="wide"
+)
+
+st.title("Analisis Diabetes - SVM")
+
 data=pd.read_excel("data/data_diabetes.xlsx")
 data.columns = data.columns.str.strip()
-st.line_chart(data)
+st.set_page_config(
+    page_title="Analisis Diabetes - SVM",
+    layout="wide"
+)
 
-st.write(data)
-
-st.dataframe(data)
-st.write("Data berhasil dimuat!")
+st.title("Analisis Diabetes Menggunakan Support Vector Machine (SVM)")
 
 data.head(10)
 
+st.subheader("1. Memuat Dataset")
+
+data = pd.read_excel("data/data_diabetes.xlsx")
+data.columns = data.columns.str.strip()
+
+st.success("Dataset berhasil dimuat")
+st.dataframe(data.head(10), use_container_width=True)
 
 data.info()
 
+st.subheader("2. Informasi Dataset")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.write("Jumlah Baris & Kolom")
+    st.write(data.shape)
+
+with col2:
+    st.write("Jumlah Nilai Unik per Kolom")
+    st.write(data.nunique())
+
+st.subheader("Statistik Deskriptif")
+st.dataframe(data.describe(), use_container_width=True)
 
 print(data.nunique())
 
@@ -72,7 +104,22 @@ for col in numeric_cols:
 for col, count in outlier_counts.items():
     print(f"Kolom {col}: {count} outlier")
 
+st.subheader("3. Analisis Outlier (IQR)")
 
+numeric_cols = data.select_dtypes(include=["int64", "float64"]).columns
+
+outlier_counts = {}
+
+for col in numeric_cols:
+    Q1 = data[col].quantile(0.25)
+    Q3 = data[col].quantile(0.75)
+    IQR = Q3 - Q1
+    lower = Q1 - 1.5 * IQR
+    upper = Q3 + 1.5 * IQR
+    outlier_counts[col] = len(data[(data[col] < lower) | (data[col] > upper)])
+
+st.write("Jumlah outlier per kolom:")
+st.json(outlier_counts)
 
 numeric_cols = data.select_dtypes(include=['int64', 'float64']).columns
 
@@ -84,7 +131,14 @@ for col in numeric_cols:
     plt.tight_layout()
     plt.show()
 
+st.subheader("4. Boxplot Sebelum Penanganan Outlier")
 
+for col in numeric_cols:
+    fig, ax = plt.subplots()
+    ax.boxplot(data[col].dropna())
+    ax.set_title(f"Boxplot {col}")
+    ax.set_ylabel(col)
+    st.pyplot(fig)
 
 numeric_cols = data.select_dtypes(include=['int64', 'float64']).columns
 
@@ -100,6 +154,18 @@ for col in numeric_cols:
     data[col] = data[col].clip(lower_bound, upper_bound)
 
 print("Outlier berhasil ditangani menggunakan IQR Capping!")
+
+st.subheader("5. Penanganan Outlier (IQR Capping)")
+
+for col in numeric_cols:
+    Q1 = data[col].quantile(0.25)
+    Q3 = data[col].quantile(0.75)
+    IQR = Q3 - Q1
+    lower = Q1 - 1.5 * IQR
+    upper = Q3 + 1.5 * IQR
+    data[col] = data[col].clip(lower, upper)
+
+st.success("Outlier berhasil ditangani menggunakan IQR Capping")
 
 for col in numeric_cols:
     Q1 = data[col].quantile(0.25)
@@ -120,6 +186,15 @@ for col in numeric_cols:
     plt.grid(True)
     plt.show()
 
+st.subheader("6. Boxplot Setelah Penanganan Outlier")
+
+for col in numeric_cols:
+    fig, ax = plt.subplots()
+    ax.boxplot(data[col])
+    ax.set_title(f"Boxplot {col}")
+    ax.set_ylabel(col)
+    st.pyplot(fig)
+
 
 data.duplicated().sum()
 
@@ -131,6 +206,7 @@ if TARGET not in data.columns:
 
 X = data.drop(TARGET, axis=1)
 y = data[TARGET]
+
 
 
 from sklearn.model_selection import train_test_split
@@ -148,6 +224,29 @@ print("Ukuran X_train:", X_train.shape)
 print("Ukuran X_test :", X_test.shape)
 print("Ukuran y_train:", y_train.shape)
 print("Ukuran y_test :", y_test.shape)
+
+st.subheader("7. Persiapan Data Modeling")
+
+TARGET = "Outcome"
+
+if TARGET not in data.columns:
+    st.error(f"Kolom target '{TARGET}' tidak ditemukan")
+    st.stop()
+
+X = data.drop(TARGET, axis=1)
+y = data[TARGET]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+st.write("Ukuran Data:")
+st.write({
+    "X_train": X_train.shape,
+    "X_test": X_test.shape,
+    "y_train": y_train.shape,
+    "y_test": y_test.shape
+})
 
 
 from sklearn.preprocessing import StandardScaler
@@ -184,7 +283,9 @@ print(classification_report(y_test, y_pred))
 print("\nConfusion Matrix:")
 print(confusion_matrix(y_test, y_pred))
 
-
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
 
 from sklearn.metrics import ConfusionMatrixDisplay
 
@@ -196,6 +297,12 @@ disp.plot(values_format='d')
 plt.title("Confusion Matrix - SVM")
 plt.show()
 
+st.subheader("8. Training Model SVM")
+
+svm_model = SVC(kernel="rbf", random_state=42)
+svm_model.fit(X_train_scaled, y_train)
+
+st.success("Model SVM berhasil dilatih")
 
 error = 1 - accuracy
 
@@ -207,6 +314,13 @@ plt.show()
 
 
 report = classification_report(y_test, y_pred, output_dict=True)
+
+st.subheader("9. Evaluasi Model")
+
+y_pred = svm_model.predict(X_test_scaled)
+accuracy = accuracy_score(y_test, y_pred)
+
+st.metric("Akurasi Model", f"{accuracy:.2%}")
 
 import pandas as pd
 df_report = pd.DataFrame(report).transpose()
@@ -221,3 +335,36 @@ plt.ylabel("Nilai")
 plt.legend()
 plt.grid(True)
 plt.show()
+
+st.subheader("Confusion Matrix")
+
+cm = confusion_matrix(y_test, y_pred)
+
+fig, ax = plt.subplots()
+disp = ConfusionMatrixDisplay(
+    confusion_matrix=cm,
+    display_labels=["Tidak Diabetes", "Diabetes"]
+)
+disp.plot(ax=ax, values_format="d")
+st.pyplot(fig)
+
+st.subheader("Classification Report")
+
+report = classification_report(y_test, y_pred, output_dict=True)
+df_report = pd.DataFrame(report).transpose()
+st.dataframe(df_report, use_container_width=True)
+
+st.subheader("Visualisasi Precision, Recall, F1-Score")
+
+fig, ax = plt.subplots(figsize=(10, 4))
+ax.plot(df_report["precision"], label="Precision")
+ax.plot(df_report["recall"], label="Recall")
+ax.plot(df_report["f1-score"], label="F1-Score")
+ax.set_title("Classification Metrics")
+ax.legend()
+ax.grid(True)
+
+st.pyplot(fig)
+
+st.markdown("---")
+st.caption("Aplikasi Streamlit – Analisis Diabetes dengan SVM")
